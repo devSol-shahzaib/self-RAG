@@ -1,0 +1,10 @@
+# Drop your source documents here.
+#
+# Supported: .md, .txt, .pdf
+# Filename hints drive the "section" metadata:
+#   contains "cv"      -> experience
+#   contains "project" -> projects
+#   contains "skill"   -> skills
+#   otherwise          -> general
+#
+# Example: shahzaib-cv.pdf, projects.md, skills.txt

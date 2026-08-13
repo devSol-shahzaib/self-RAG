@@ -1,0 +1,11 @@
+node_modules/
+.env
+.env.local
+dist/
+.vercel
+.DS_Store
+*.log
+
+# Keep the documents folder tracked but ignore its contents (private).
+backend/documents/*
+!backend/documents/.gitkeep
