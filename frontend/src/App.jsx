@@ -125,8 +125,13 @@ export default function App() {
           <div className="header-text">
             <h1>Shahzaib Ali</h1>
             <p>
-              <span className="dot-online" /> Software Developer · Cricketer ·
-              Home Cook · Plant Parent · Cat Lover
+              <span className="dot-online" />
+              <span className="subtitle-full">
+                Software Developer · Cricketer · Home Cook · Plant Parent · Cat Lover
+              </span>
+              <span className="subtitle-short">
+                coding · cricket · cooking · cats · plants
+              </span>
             </p>
           </div>
         </header>

@@ -143,9 +143,15 @@ body {
 .dot-online {
   width: 8px;
   height: 8px;
+  flex-shrink: 0; /* never let the flex row squish it into an oval */
   border-radius: 50%;
   background: #34d399;
   box-shadow: 0 0 8px #34d399;
+}
+
+/* Full subtitle on desktop, a short one on mobile (toggled in the media query). */
+.subtitle-short {
+  display: none;
 }
 
 .composer .reset-btn {
@@ -527,9 +533,15 @@ body {
     padding-top: calc(12px + env(safe-area-inset-top));
   }
 
+  /* Smaller coin + shorter headshot so it sits with padding inside the ring. */
   .avatar-lg {
-    width: 52px;
-    height: 52px;
+    width: 50px;
+    height: 50px;
+  }
+
+  .avatar-lg img {
+    height: 108%;
+    bottom: 1px;
   }
 
   .header-text h1 {
@@ -537,12 +549,22 @@ body {
   }
 
   .header-text p {
-    font-size: 11.5px;
-    align-items: flex-start; /* keep the status dot on the first line when text wraps */
+    font-size: 12px;
+    align-items: center;
+    line-height: 1.5;
+  }
+
+  /* Short subtitle usually fits one line, so center the dot again. */
+  .subtitle-full {
+    display: none;
+  }
+
+  .subtitle-short {
+    display: inline;
   }
 
   .header-text .dot-online {
-    margin-top: 4px;
+    margin-top: 0;
   }
 
   /* Messages: a touch more breathing room + slightly wider bubbles. */
