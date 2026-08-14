@@ -44,6 +44,7 @@ export default function App() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const listRef = useRef(null);
 
   useEffect(() => {
@@ -61,6 +62,7 @@ export default function App() {
     setMessages([]);
     setInput("");
     setLoading(false);
+    setMenuOpen(false);
   }
 
   async function send() {
@@ -127,13 +129,63 @@ export default function App() {
             <p>
               <span className="dot-online" />
               <span className="subtitle-full">
-                Software Developer · Cricketer · Home Cook · Plant Parent · Cat Lover
+                Software Developer · Cricketer · Home Cook · Plant Parent · Cat
+                Lover
               </span>
               <span className="subtitle-short">
                 coding · cricket · cooking · cats · plants
               </span>
             </p>
           </div>
+
+          {messages.length > 0 && (
+            <div className="header-actions">
+              <button
+                className="kebab-btn"
+                onClick={() => setMenuOpen((o) => !o)}
+                aria-label="Menu"
+                aria-expanded={menuOpen}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  width="18"
+                  height="18"
+                  fill="currentColor"
+                >
+                  <circle cx="12" cy="5" r="1.7" />
+                  <circle cx="12" cy="12" r="1.7" />
+                  <circle cx="12" cy="19" r="1.7" />
+                </svg>
+              </button>
+
+              {menuOpen && (
+                <>
+                  <div
+                    className="menu-backdrop"
+                    onClick={() => setMenuOpen(false)}
+                  />
+                  <div className="menu-popover">
+                    <button className="menu-item" onClick={reset}>
+                      <svg
+                        viewBox="0 0 24 24"
+                        width="16"
+                        height="16"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+                        <path d="M3 3v5h5" />
+                      </svg>
+                      Reset chat
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </header>
 
         <div className="messages" ref={listRef}>
@@ -167,7 +219,7 @@ export default function App() {
             <div className="row row-assistant">
               <Avatar className="avatar-sm" />
               <div className="msg">
-                <div className="bubble bubble-assistant">
+                <div className="bubble bubble-assistant bubble-typing">
                   <TypingDots />
                 </div>
               </div>
@@ -214,28 +266,6 @@ export default function App() {
                 />
               </svg>
             </button>
-            {messages.length > 0 && (
-              <button
-                className="reset-btn"
-                onClick={reset}
-                title="New chat"
-                aria-label="New chat"
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  width="18"
-                  height="18"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
-                  <path d="M3 3v5h5" />
-                </svg>
-              </button>
-            )}
           </div>
         )}
       </div>

@@ -154,24 +154,69 @@ body {
   display: none;
 }
 
-.composer .reset-btn {
+/* --- Header kebab menu (reset lives here now) --- */
+.header-actions {
+  margin-left: auto;
+  position: relative;
   flex-shrink: 0;
-  width: 46px;
-  height: 46px;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--card-border);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--muted);
-  cursor: pointer;
-  transition: color 0.5s ease, border-color 0.5s ease, background-color 0.5s ease;
 }
 
-.composer .reset-btn:hover {
+.kebab-btn {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.2s ease, background-color 0.2s ease;
+}
+
+.kebab-btn:hover {
   color: var(--text);
-  border-color: var(--fuchsia);
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+}
+
+.menu-popover {
+  position: absolute;
+  top: 38px;
+  right: 0;
+  z-index: 21;
+  min-width: 150px;
+  padding: 6px;
+  background: #2a1550;
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  box-shadow: 0 14px 34px rgba(20, 5, 45, 0.6);
+  animation: pop 0.14s ease;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 9px 11px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13.5px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.menu-item:hover {
+  background: rgba(255, 255, 255, 0.08);
 }
 
 /* --- Avatar ---
@@ -302,6 +347,11 @@ body {
   border: 1px solid var(--error-border);
   color: var(--error-text);
   border-bottom-left-radius: 5px;
+}
+
+/* Typing indicator holds only 3 dots, so keep the pill tight. */
+.bubble-typing {
+  padding: 9px 13px;
 }
 
 /* --- Meta / sources --- */
@@ -438,7 +488,7 @@ body {
 /* --- Composer --- */
 .composer {
   display: flex;
-  align-items: flex-end;
+  align-items: stretch; /* textarea + send button share the exact same height */
   gap: 10px;
   padding: 14px 16px;
   border-top: 1px solid var(--card-border);
@@ -489,7 +539,7 @@ body {
 
 .composer button {
   width: 46px;
-  height: 46px;
+  align-self: stretch; /* match the textarea height exactly */
   flex-shrink: 0;
   border: none;
   border-radius: 14px;
@@ -498,7 +548,7 @@ body {
   cursor: pointer;
   display: grid;
   place-items: center;
-  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+  transition: box-shadow 0.15s ease, opacity 0.15s ease;
   box-shadow: 0 6px 18px rgba(217, 70, 239, 0.4);
 }
 
@@ -528,8 +578,8 @@ body {
 
   /* Header: tighter, with room for the notch (base padding + safe-area inset). */
   .header {
-    gap: 12px;
-    padding: 12px 16px;
+    gap: 10px;
+    padding: 12px 14px;
     padding-top: calc(12px + env(safe-area-inset-top));
   }
 
@@ -549,7 +599,7 @@ body {
   }
 
   .header-text p {
-    font-size: 12px;
+    font-size: 11px;
     align-items: center;
     line-height: 1.5;
   }
@@ -574,11 +624,23 @@ body {
   }
 
   .row {
-    max-width: 90%;
+    max-width: 88%;
   }
 
+  /* Smaller, tighter chat pills on mobile. */
   .bubble {
-    font-size: 15px;
+    font-size: 13.5px;
+    padding: 9px 13px;
+    line-height: 1.5;
+  }
+
+  .bubble-typing {
+    padding: 8px 12px;
+  }
+
+  .typing-dots span {
+    width: 6px;
+    height: 6px;
   }
 
   /* Composer: 16px input avoids iOS focus-zoom; base padding + home-indicator inset. */
@@ -598,11 +660,9 @@ body {
   }
 }
 
-/* Very narrow phones: keep the two action buttons from crowding the input. */
+/* Very narrow phones: keep the send button from crowding the input. */
 @media (max-width: 360px) {
-  .composer .reset-btn,
   .composer button {
     width: 42px;
-    height: 42px;
   }
 }
