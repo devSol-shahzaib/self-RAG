@@ -26,6 +26,10 @@ export const config = {
   retrievalTopK: 5,
   maxAttempts: 2,
 
+  // Questions allowed per chat session (the frontend enforces the cap; the
+  // agent is told the number so it can answer "how many can I ask?" honestly).
+  messageLimit: 10,
+
   // --- Security ---
   corsOrigins,
   jsonBodyLimit: "16kb", // reject oversized payloads

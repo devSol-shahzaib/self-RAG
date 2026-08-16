@@ -24,6 +24,14 @@ const State = Annotation.Root({
   attempts: Annotation({ default: () => 0, reducer: (_, next) => next }),
   needsRetrieval: Annotation(),
   sufficient: Annotation(),
+  abusive: Annotation({ default: () => false, reducer: (_, next) => next }),
+  sessionEnded: Annotation({ default: () => false, reducer: (_, next) => next }),
+  // 1-based ordinal of the current question this session, so the agent can say
+  // how many questions are left when asked about the limit.
+  questionsUsed: Annotation({ default: () => 0, reducer: (_, next) => next }),
+  // Source of truth for whether a cool-down warning was already issued this
+  // session. Passed in from the client and echoed back after each turn.
+  warned: Annotation({ default: () => false, reducer: (_, next) => next }),
 });
 
 /** Format retrieved documents into a single context block for the LLM. */
@@ -45,7 +53,62 @@ function toChatMessages(history) {
     .map((m) => ({ role: m.role, content: m.text }));
 }
 
+// Mocking cool-down warnings for a first rude/abusive message.
+const WARN_LINES = [
+  "Whoa, easy there. Go grab some ice and cool down a bit 🧊 Keep it civil, or I'll wrap up this chat next time.",
+  "Someone woke up spicy today. Take a breather and put some ice on that temper 🧊 One more like that and I'm ending the chat.",
+  "Haha, big words. Go cool off with some ice first 🧊 Stay rude and I'll close this session next time.",
+  "Easy, tiger. That attitude needs a cold pack 🧊 Keep it up and this chat gets wrapped up.",
+];
+
+// Final message when the user is rude again after a warning.
+const END_LINES = [
+  "Yeah, that's my cue. I warned you once, so I'm wrapping this chat up. Come back when you've cooled down 🧊",
+  "Alright, that's enough heat for one chat. I'm closing this session. Grab some ice and try again later 🧊",
+  "I did say next time I'd end it, so here we are. Chat wrapped. Cool off and come back fresh 🧊",
+];
+
+const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
 // --- Nodes -----------------------------------------------------------------
+
+/**
+ * Guardrail: flag rude/abusive messages. First offense gets a mocking cool-down
+ * warning; a repeat (after a prior warning in this conversation) wraps the chat.
+ */
+async function moderate(state) {
+  const mod = llm.withStructuredOutput(z.object({ abusive: z.boolean() }), {
+    name: "moderate",
+  });
+
+  // Judge ONLY this single message on its own — no history — so an apology or
+  // calm reply after an earlier rude message isn't dragged down by that tone.
+  const { abusive } = await mod.invoke([
+    {
+      role: "system",
+      content:
+        "Decide if THIS one message, on its own, is rude, insulting, hateful, threatening, or uses " +
+        "profanity/slurs as an insult. Judge only this message — ignore any earlier context. " +
+        "Apologies ('sorry', 'my bad'), calming down, polite or neutral messages, ordinary questions, " +
+        "and mild casual language are NOT abusive. Return abusive=true only for a genuinely rude/abusive " +
+        "message.",
+    },
+    { role: "user", content: state.question },
+  ]);
+
+  if (!abusive) return { abusive: false };
+
+  // Repeat offense if a cool-down warning was already issued this session.
+  if (state.warned) {
+    return { abusive: true, sessionEnded: true, answer: pick(END_LINES) };
+  }
+  return {
+    abusive: true,
+    sessionEnded: false,
+    warned: true, // remember the warning for the rest of the session
+    answer: pick(WARN_LINES),
+  };
+}
 
 /** Decide whether the question needs the knowledge base. Seeds `query`. */
 async function route(state) {
@@ -63,11 +126,13 @@ async function route(state) {
         "'tell me more', 'why?'). " +
         "Set needsRetrieval=true for ANY question that asks for information about Shahzaib — his work AND " +
         "his personal life: experience, projects, skills, background, education, location, and " +
-        "hobbies/interests such as cooking, cricket, gardening, fitness, and anything else about him. " +
+        "hobbies/interests such as cooking, cricket, gardening, fitness, cats, and anything else about him. " +
+        "ALSO set needsRetrieval=true for questions about THIS assistant/chatbot itself — how it was " +
+        "built, how it works, or what technologies power it. " +
         "Set needsRetrieval=false for pure greetings, thanks, or small talk (e.g. 'hi', 'how are you', " +
         "'thanks'), for short conversational replies that are not themselves a lookup question " +
-        "(e.g. 'no', 'yeah', 'cool', 'ok'), and for generic questions that are not about Shahzaib. " +
-        "When it IS a question about him, prefer retrieval (true).",
+        "(e.g. 'no', 'yeah', 'cool', 'ok'), and for generic questions unrelated to Shahzaib or this chatbot. " +
+        "When it IS a question about him or this chatbot, prefer retrieval (true).",
     },
     ...toChatMessages(state.history),
     { role: "user", content: state.question },
@@ -220,6 +285,15 @@ async function generate(state) {
   const context = formatContext(state.documents);
   const contact = await getContactInfo();
 
+  const limit = config.messageLimit;
+  const remaining = Math.max(0, limit - (state.questionsUsed || 0));
+  const limitRule =
+    `Session limit (important): this chat allows about ${limit} questions per session, then I sign off ` +
+    `to go about my day. Right now there are about ${remaining} question(s) left. If they ask how many ` +
+    "questions they can ask, or about the limit, tell them plainly and casually (for example that it's " +
+    `capped at around ${limit} per session with roughly ${remaining} left). Do NOT claim it's unlimited, ` +
+    "and do NOT tease about this, just answer it.\n\n";
+
   const res = await llm.invoke([
     {
       role: "system",
@@ -238,14 +312,19 @@ async function generate(state) {
         "end with a sales-pitch style follow up like 'let me know if you want to know more'.\n\n" +
         contactRuleFor(contact) +
         "\n\n" +
+        limitRule +
         "Choose EXACTLY ONE of these behaviors for your reply:\n" +
-        "1) ANSWER, if info about me is provided below and it addresses their message, answer it concisely " +
-        "and specifically. Do NOT invent anything beyond it, and do NOT add any teasing line.\n" +
+        "1) ANSWER, if the info below addresses their message — directly, OR through an obvious, reasonable " +
+        "inference from it (for example, being a 'cat lover' means my favourite animal is cats; loving to " +
+        "cook means I enjoy cooking) — answer it concisely and specifically. Connect the dots when the info " +
+        "clearly implies the answer. Do NOT fabricate specific facts (names, numbers, dates) that aren't " +
+        "supported, and do NOT add any teasing line.\n" +
         "2) CHAT, if they are only greeting, thanking, or replying conversationally (like 'hi', 'thanks', " +
         "'no', 'cool') with no real question to look up, reply warmly. When it fits, invite them with " +
         "something like 'let me know what you want to know about me' (never 'how can I assist you'). " +
         "Do NOT tease.\n" +
-        "3) TEASE, only if they asked a real question about me and no info to answer it is provided below, " +
+        "3) TEASE, only if the info below has nothing relevant to their question (you truly cannot answer " +
+        "even by reasonable inference), " +
         "do NOT answer and do NOT guess. Reply with only a short, playful one line refusal in your own " +
         "words, and word it differently every single time so it never sounds like a canned line. Always " +
         "include a 😛. Keep it friendly and plain. For a sense of the vibe (do not copy these word for " +
@@ -268,6 +347,9 @@ async function generate(state) {
 
 // --- Edges -----------------------------------------------------------------
 
+// Abusive messages short-circuit to END (moderate already set the answer).
+const afterModerate = (state) => (state.abusive ? END : "route");
+
 const afterRoute = (state) => (state.needsRetrieval ? "retrieve" : "generate");
 
 // Hard guard: stop after maxAttempts so unanswerable questions can't loop.
@@ -277,12 +359,14 @@ const afterGrade = (state) =>
 // Node id is "generate" (LangGraph forbids a node name that collides with the
 // "answer" state channel); it still produces the final answer.
 const graph = new StateGraph(State)
+  .addNode("moderate", moderate)
   .addNode("route", route)
   .addNode("retrieve", retrieve)
   .addNode("grade", grade)
   .addNode("rewrite", rewrite)
   .addNode("generate", generate)
-  .addEdge(START, "route")
+  .addEdge(START, "moderate")
+  .addConditionalEdges("moderate", afterModerate, [END, "route"])
   .addConditionalEdges("route", afterRoute, ["retrieve", "generate"])
   .addEdge("retrieve", "grade")
   .addConditionalEdges("grade", afterGrade, ["rewrite", "generate"])
@@ -295,10 +379,12 @@ const graph = new StateGraph(State)
  *
  * @param {string} question
  * @param {Array<{ role: "user" | "assistant", text: string }>} [history] prior turns
- * @returns {Promise<{ answer: string, sources: string[], retrievalUsed: boolean }>}
+ * @param {boolean} [warned] whether a cool-down warning was already issued this session
+ * @param {number} [questionsUsed] 1-based ordinal of this question in the session
+ * @returns {Promise<{ answer: string, sources: string[], retrievalUsed: boolean, sessionEnded: boolean, warned: boolean }>}
  */
-export async function ask(question, history = []) {
-  const result = await graph.invoke({ question, history });
+export async function ask(question, history = [], warned = false, questionsUsed = 0) {
+  const result = await graph.invoke({ question, history, warned, questionsUsed });
 
   const sources = [
     ...new Set((result.documents ?? []).map((doc) => doc.metadata?.source).filter(Boolean)),
@@ -308,5 +394,7 @@ export async function ask(question, history = []) {
     answer: result.answer ?? "",
     sources,
     retrievalUsed: Boolean(result.needsRetrieval),
+    sessionEnded: Boolean(result.sessionEnded),
+    warned: Boolean(result.warned),
   };
 }

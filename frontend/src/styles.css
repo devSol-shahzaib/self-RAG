@@ -513,8 +513,59 @@ body {
   color: rgba(196, 181, 253, 0.6);
 }
 
-.composer-limit {
+.composer-blocked {
   justify-content: center;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.blocked-text {
+  font-size: 13.5px;
+  color: var(--muted);
+}
+
+.ok-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 42px;
+  padding: 0 28px;
+  border: none;
+  border-radius: 12px;
+  background: var(--grad);
+  color: #fff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  text-align: center;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(217, 70, 239, 0.4);
+}
+
+/* OK CTA shown under the closing message bubble — centered and given a gentle
+   pulse so it reads as the clear next step. */
+.ok-btn-inline {
+  align-self: center;
+  margin-top: 14px;
+  height: 46px;
+  padding: 0 40px;
+  font-size: 15px;
+  letter-spacing: 0.3px;
+  animation: okPulse 1.8s ease-in-out infinite;
+}
+
+@keyframes okPulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 6px 18px rgba(217, 70, 239, 0.4);
+  }
+  50% {
+    transform: scale(1.06);
+    box-shadow: 0 8px 26px rgba(217, 70, 239, 0.6);
+  }
 }
 
 .reset-cta {
@@ -560,6 +611,173 @@ body {
   opacity: 0.4;
   cursor: not-allowed;
   box-shadow: none;
+}
+
+/* --- Halfway badge --- */
+.halfway-badge {
+  align-self: center;
+  margin: 2px 0;
+  padding: 5px 14px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--card-border);
+  animation: pop 0.25s ease;
+}
+
+/* --- Goodbye overlay (shown on OK at the quota limit) --- */
+.goodbye-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(20, 5, 45, 0.66);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  animation: gbFade 0.3s ease;
+}
+
+.goodbye-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  text-align: center;
+}
+
+@keyframes gbFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Circular avatar coin that flies in from the header (transform set in JS). */
+.goodbye-face {
+  position: relative;
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--grad);
+  box-shadow: 0 0 0 3px rgba(217, 70, 239, 0.5), 0 0 34px rgba(168, 85, 247, 0.7),
+    0 18px 44px rgba(20, 5, 45, 0.6);
+  will-change: transform;
+}
+
+.goodbye-face .gb-smile,
+.goodbye-face .gb-wink {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* Keep both frames on their own persistent GPU layer so the opacity swap is a
+     pure compositor flip — otherwise the hidden frame's layer is dropped and
+     re-rasterized on show, which reads as the image flickering/re-rendering. */
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  will-change: opacity;
+}
+
+.goodbye-face-emoji {
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+}
+
+.goodbye-face-emoji .gb-smile,
+.goodbye-face-emoji .gb-wink {
+  display: grid;
+  place-items: center;
+  font-size: 150px;
+  line-height: 1;
+}
+
+/* Wink starts only after the face has flown in and settled. The smile and wink
+   are swapped with hard steps and driven by *inverse* keyframes on the same
+   clock, so exactly one image is visible at any moment — the wink png has
+   transparency, so leaving the smile underneath would show it through. */
+.gb-smile {
+  opacity: 1;
+  animation: gbSmile 2.8s steps(1, end) 0.9s infinite;
+}
+
+.gb-wink {
+  opacity: 0;
+  animation: gbWink 2.8s steps(1, end) 0.9s infinite;
+}
+
+@keyframes gbSmile {
+  0%,
+  36% {
+    opacity: 1;
+  }
+  38%,
+  46% {
+    opacity: 0;
+  }
+  48%,
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes gbWink {
+  0%,
+  36% {
+    opacity: 0;
+  }
+  38%,
+  46% {
+    opacity: 1;
+  }
+  48%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.goodbye-text,
+.goodbye-hint {
+  margin: 0;
+  opacity: 0;
+  animation: gbTextIn 0.45s ease 0.55s forwards;
+}
+
+.goodbye-hint {
+  animation-delay: 0.72s;
+}
+
+@keyframes gbTextIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.goodbye-text {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 22px;
+  font-weight: 700;
+  background: var(--grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.goodbye-hint {
+  font-size: 12.5px;
+  color: var(--muted);
 }
 
 /* --- Responsive --- */
