@@ -23,6 +23,7 @@ const State = Annotation.Root({
   answer: Annotation(),
   attempts: Annotation({ default: () => 0, reducer: (_, next) => next }),
   needsRetrieval: Annotation(),
+  codeRequest: Annotation({ default: () => false, reducer: (_, next) => next }),
   sufficient: Annotation(),
   abusive: Annotation({ default: () => false, reducer: (_, next) => next }),
   sessionEnded: Annotation({ default: () => false, reducer: (_, next) => next }),
@@ -66,6 +67,17 @@ const END_LINES = [
   "Yeah, that's my cue. I warned you once, so I'm wrapping this chat up. Come back when you've cooled down 🧊",
   "Alright, that's enough heat for one chat. I'm closing this session. Grab some ice and try again later 🧊",
   "I did say next time I'd end it, so here we are. Chat wrapped. Cool off and come back fresh 🧊",
+];
+
+// Playful refusals for visitors who mistake this for a coding assistant and ask
+// it to write, fix, debug, or run code. One is picked at random each time.
+const CODE_REFUSAL_LINES = [
+  "Ha, nice try, but I'm the walking-talking-about-myself version of me, not your on-call debugger 😅 I do write code, just not in this chat.",
+  "I'd love to, but this little version of me only talks about myself, not your stack traces 😅 Ask me about my work instead.",
+  "Whoa, I left my IDE at my desk 😅 This chat is for getting to know me, not fixing bugs. Happy to tell you what I've built though.",
+  "That's a hard pass on the free code review 😅 I ship code for a living, but here I just chat about myself. Ask away about my projects.",
+  "Cute, you want me to compile that in my head? 😅 Not here, friend. I can tell you all about how I work though.",
+  "I don't do live coding at parties, and this is basically a party 😅 Ask me about my experience instead.",
 ];
 
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
@@ -113,15 +125,26 @@ async function moderate(state) {
 /** Decide whether the question needs the knowledge base. Seeds `query`. */
 async function route(state) {
   const router = llm.withStructuredOutput(
-    z.object({ needsRetrieval: z.boolean(), reason: z.string() }),
+    z.object({
+      needsRetrieval: z.boolean(),
+      codeRequest: z.boolean(),
+      reason: z.string(),
+    }),
     { name: "route" }
   );
 
-  const { needsRetrieval } = await router.invoke([
+  const { needsRetrieval, codeRequest } = await router.invoke([
     {
       role: "system",
       content:
         "You route messages for a personal Q&A chat where visitors ask Shahzaib Ali about himself. " +
+        "Set codeRequest=true if the message asks ME to write, generate, fix, debug, refactor, review, " +
+        "explain, translate, complete, or run/execute code, a script, a query, a regex, or a config, or " +
+        "asks me to solve a programming/algorithm task or act as a coding assistant. Pasted code with a " +
+        "'fix this' or 'what's wrong' also counts. Asking ABOUT my coding experience, projects, or which " +
+        "technologies I use is NOT a code request (codeRequest=false). When codeRequest=true, " +
+        "needsRetrieval can be false. " +
+        "Otherwise: " +
         "Use the conversation so far to interpret short or referential replies (e.g. 'yes', 'no', " +
         "'tell me more', 'why?'). " +
         "Set needsRetrieval=true for ANY question that asks for information about Shahzaib — his work AND " +
@@ -138,7 +161,13 @@ async function route(state) {
     { role: "user", content: state.question },
   ]);
 
-  return { needsRetrieval, query: state.question };
+  // Don't turn into an on-demand coding assistant: short-circuit with a
+  // playful refusal (this chat is only for getting to know Shahzaib).
+  if (codeRequest) {
+    return { codeRequest: true, answer: pick(CODE_REFUSAL_LINES) };
+  }
+
+  return { needsRetrieval, codeRequest: false, query: state.question };
 }
 
 /** Similarity search against Pinecone (top K). Counts an attempt. */
@@ -350,7 +379,9 @@ async function generate(state) {
 // Abusive messages short-circuit to END (moderate already set the answer).
 const afterModerate = (state) => (state.abusive ? END : "route");
 
-const afterRoute = (state) => (state.needsRetrieval ? "retrieve" : "generate");
+// Code-help requests short-circuit to END (route already set the refusal).
+const afterRoute = (state) =>
+  state.codeRequest ? END : state.needsRetrieval ? "retrieve" : "generate";
 
 // Hard guard: stop after maxAttempts so unanswerable questions can't loop.
 const afterGrade = (state) =>
@@ -367,7 +398,7 @@ const graph = new StateGraph(State)
   .addNode("generate", generate)
   .addEdge(START, "moderate")
   .addConditionalEdges("moderate", afterModerate, [END, "route"])
-  .addConditionalEdges("route", afterRoute, ["retrieve", "generate"])
+  .addConditionalEdges("route", afterRoute, [END, "retrieve", "generate"])
   .addEdge("retrieve", "grade")
   .addConditionalEdges("grade", afterGrade, ["rewrite", "generate"])
   .addEdge("rewrite", "retrieve")
